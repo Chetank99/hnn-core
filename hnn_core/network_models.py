@@ -56,7 +56,7 @@ def jones_2009_model(params=None, add_drives_from_params=False,
     """
     hnn_core_root = op.dirname(hnn_core.__file__)
     if params is None:
-        params = op.join(hnn_core_root, 'param', 'default.json')
+        params = op.join(hnn_core_root, 'param', 'jones2009_base.json')
     if isinstance(params, str):
         params = read_params(params)
 
