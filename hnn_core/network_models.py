@@ -4,7 +4,7 @@
 
 import os.path as op
 import hnn_core
-from hnn_core import read_params
+from .params import _read_json
 from .network import Network
 from .params import _short_name
 from .cells_default import pyramidal_ca
@@ -58,7 +58,7 @@ def jones_2009_model(params=None, add_drives_from_params=False,
     if params is None:
         params = op.join(hnn_core_root, 'param', 'jones2009_base.json')
     if isinstance(params, str):
-        params = read_params(params)
+        params = _read_json(params)
 
     net = Network(params, add_drives_from_params=add_drives_from_params,
                   legacy_mode=legacy_mode, mesh_shape=mesh_shape)
@@ -295,7 +295,7 @@ def calcium_model(params=None, add_drives_from_params=False,
     hnn_core_root = op.dirname(hnn_core.__file__)
     params_fname = op.join(hnn_core_root, 'param', 'jones2009_base.json')
     if params is None:
-        params = read_params(params_fname)
+        params = _read_json(params_fname)
 
     net = jones_2009_model(params, add_drives_from_params, legacy_mode,
                            mesh_shape=mesh_shape)

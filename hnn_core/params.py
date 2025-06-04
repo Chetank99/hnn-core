@@ -39,7 +39,8 @@ def _read_json(param_data):
     params_input : dict
         Dictionary of parameters
     """
-    return json.loads(param_data)
+    with open(param_data, 'r') as f:
+        return json.load(f)
 
 
 def _read_legacy_params(param_data):
