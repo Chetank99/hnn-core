@@ -20,7 +20,7 @@ def jones_2009_model(params=None, add_drives_from_params=False,
     ----------
     params : str | dict | None
         The path to the parameter file for constructing the network.
-        If None, parameters loaded from default.json
+        If None, parameters loaded from jones2009_base.json
         Default: None
     add_drives_from_params : bool
         If True, add drives as defined in the params-dict. NB this is mainly
@@ -293,7 +293,7 @@ def calcium_model(params=None, add_drives_from_params=False,
            Brain Topography, 35, 19–35 (2022).
     """
     hnn_core_root = op.dirname(hnn_core.__file__)
-    params_fname = op.join(hnn_core_root, 'param', 'default.json')
+    params_fname = op.join(hnn_core_root, 'param', 'jones2009_base.json')
     if params is None:
         params = read_params(params_fname)
 
