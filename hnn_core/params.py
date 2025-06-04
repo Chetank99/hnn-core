@@ -40,8 +40,9 @@ def _read_json(param_data):
         Dictionary of parameters
     """
     with open(param_data, 'r') as f:
-        return json.load(f)
-
+        data = json.load(f)
+    print("Loaded keys:", list(data.keys()))
+    return data
 
 def _read_legacy_params(param_data):
     """Read param values from a .param file (legacy).
