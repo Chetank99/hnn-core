@@ -340,12 +340,19 @@ def basket(cell_name, pos=(0, 0, 0), gid=None):
     cell : instance of BasketSingle
         The basket cell.
     """
-    if cell_name == 'L2Basket':
+    # MODIFIED: More flexible cell name handling
+    # Determine layer based on presence of L2 or L5 in the name
+    if 'L2' in cell_name.upper():
+        # L2 basket cell configuration
         sect_loc = dict(proximal=['soma'], distal=['soma'])
-    elif cell_name == 'L5Basket':
+    elif 'L5' in cell_name.upper():
+        # L5 basket cell configuration
         sect_loc = dict(proximal=['soma'], distal=[])
     else:
-        raise ValueError(f'Unknown basket cell type: {cell_name}')
+        # Default to L2 configuration if layer cannot be determined
+        print(f"Warning: Could not determine layer from cell name '{cell_name}'. "
+              f"Using L2 basket cell configuration.")
+        sect_loc = dict(proximal=['soma'], distal=['soma'])
 
     sections = dict()
     sections['soma'] = _get_basket_soma(cell_name)
@@ -354,13 +361,14 @@ def basket(cell_name, pos=(0, 0, 0), gid=None):
     sections['soma'].mechs = {'hh2': dict()}
 
     cell_tree = None
+    
+    # Use the provided cell_name instead of forcing it to be L2Basket/L5Basket
     return Cell(cell_name, pos,
                 sections=sections,
                 synapses=synapses,
                 sect_loc=sect_loc,
                 cell_tree=cell_tree,
                 gid=gid)
-
 
 def pyramidal(cell_name, pos=(0, 0, 0), override_params=None, gid=None):
     """Pyramidal neuron.
@@ -378,12 +386,21 @@ def pyramidal(cell_name, pos=(0, 0, 0), override_params=None, gid=None):
         The GID is an integer from 0 to n_cells, or None if the cell is not
         yet attached to a network. Once the GID is set, it cannot be changed.
     """
-    if cell_name == 'L2Pyr':
-        return _cell_L2Pyr(override_params, pos=pos, gid=gid)
-    elif cell_name == 'L5Pyr':
-        return _cell_L5Pyr(override_params, pos=pos, gid=gid)
+    # MODIFIED: More flexible cell name handling
+    # Determine which pyramidal cell template to use based on layer
+    if 'L2' in cell_name.upper():
+        cell = _cell_L2Pyr(override_params, pos=pos, gid=gid)
+    elif 'L5' in cell_name.upper():
+        cell = _cell_L5Pyr(override_params, pos=pos, gid=gid)
     else:
-        raise ValueError(f'Unknown pyramidal cell type: {cell_name}')
+        # Default to L2 if layer cannot be determined
+        print(f"Warning: Could not determine layer from cell name '{cell_name}'. "
+              f"Using L2 pyramidal cell template.")
+        cell = _cell_L2Pyr(override_params, pos=pos, gid=gid)
+    
+    # Override the cell name to use the custom one
+    cell.name = cell_name
+    return cell
 
 
 def _linear_g_at_dist(x, gsoma, gdend, xkink):

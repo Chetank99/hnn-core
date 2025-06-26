@@ -466,6 +466,8 @@ class Network:
             # Update positions for this cell type
             self.pos_dict[cell_type] = validated_positions
         
+        #ToDo: W3F -> remove same
+        '''
         # Update mesh shape if pyramidal positions changed
         if 'L2_pyramidal' in custom_positions or 'L5_pyramidal' in custom_positions:
             # Try to infer grid size from custom positions
@@ -477,6 +479,7 @@ class Network:
                     self._N_pyr_x = side
                     self._N_pyr_y = side
                     break
+        '''
 
     def set_cell_positions(self, *, pos_dict=None, inplane_distance=None, 
                            layer_separation=None):
@@ -515,7 +518,9 @@ class Network:
             zdiff=layer_separation,
             inplane_distance=inplane_distance,
         )
-        
+        '''
+        ToDo: if none-> basically handling cases
+        '''
         # Map layers to cell types (default mapping)
         self.pos_dict = {
             'L5_pyramidal': layer_dict['L5_bottom'],

@@ -13,6 +13,151 @@ from .cells_default import pyramidal, basket
 import numpy as np
 
 
+
+def checker_model(params=None, add_drives_from_params=False,
+                  legacy_mode=False, mesh_shape=(10, 10), 
+                  custom_positions=None):
+    """Test model with renamed cell type to identify hardcoded assumptions."""
+
+    # Load parameters
+    hnn_core_root = op.dirname(hnn_core.__file__)
+    if params is None:
+        params = op.join(hnn_core_root, 'param', 'default.json')
+    if isinstance(params, str):
+        params = read_params(params)
+
+    # MODIFIED: Rename L2_basket to L2_inhibitory to test robustness
+    cell_types = {
+        'L2_inhibitory': basket(cell_name='L2_inhibitory'),  # <-- CHANGED NAME
+        'L2_pyramidal': pyramidal(cell_name=_short_name('L2_pyramidal')),
+        'L5_basket': basket(cell_name=_short_name('L5_basket')),
+        'L5_pyramidal': pyramidal(cell_name=_short_name('L5_pyramidal'))
+    }
+    
+    # Create spatial organization identical to Jones 2009
+    if custom_positions is None:
+        layer_dict = _create_cell_coords(
+            n_pyr_x=mesh_shape[0],
+            n_pyr_y=mesh_shape[1],
+            zdiff=1307.4,  # Standard layer separation
+            inplane_distance=1.0  # Standard in-plane distance
+        )
+        
+        # MODIFIED: Update pos_dict to use new cell name
+        pos_dict = {
+            'L5_pyramidal': layer_dict['L5_bottom'],
+            'L2_pyramidal': layer_dict['L2_bottom'], 
+            'L5_basket': layer_dict['L5_mid'],
+            'L2_inhibitory': layer_dict['L2_mid'],  # <-- CHANGED KEY
+            'origin': layer_dict['origin']
+        }
+    else:
+        pos_dict = custom_positions
+    
+    # Create network instance
+    net = Network(params, 
+                  add_drives_from_params=add_drives_from_params,
+                  legacy_mode=legacy_mode, 
+                  mesh_shape=mesh_shape,
+                  pos_dict=pos_dict,
+                  cell_types=cell_types)
+    
+    delay = net.delay
+
+    # ========================================================================
+    # SIMPLIFIED CONNECTIVITY PATTERN
+    # ========================================================================
+    
+    # 1. Within-layer pyramidal-to-pyramidal (excitatory)
+    # L2 pyramidal → L2 pyramidal
+    lamtha = 3.0  # Spatial decay constant
+    loc = 'proximal'  # Synaptic location
+    target_cell = 'L2_pyramidal'
+    src_cell = 'L2_pyramidal'
+    
+    for receptor in ['nmda', 'ampa']:
+        key = f'gbar_{_short_name(target_cell)}_{_short_name(src_cell)}_{receptor}'
+        weight = net._params[key]
+        net.add_connection(
+            src_cell, target_cell, loc, receptor, weight,
+            delay, lamtha, allow_autapses=False)
+    
+    # L5 pyramidal → L5 pyramidal  
+    target_cell = 'L5_pyramidal'
+    src_cell = 'L5_pyramidal'
+    
+    for receptor in ['nmda', 'ampa']:
+        key = f'gbar_{_short_name(target_cell)}_{_short_name(src_cell)}_{receptor}'
+        weight = net._params[key]
+        net.add_connection(
+            src_cell, target_cell, loc, receptor, weight,
+            delay, lamtha, allow_autapses=False)
+
+    # 2. Within-layer basket-to-pyramidal (inhibitory)
+    # L2 inhibitory → L2 pyramidal (MODIFIED TO USE NEW NAME)
+    src_cell = 'L2_inhibitory'  # <-- CHANGED
+    target_cell = 'L2_pyramidal'
+    lamtha = 50.0  # Broader spatial reach for inhibition
+    loc = 'soma'   # Perisomatic inhibition
+    
+    # THIS WILL LIKELY BREAK: Parameter lookup expects 'L2Basket' not 'L2_inhibitory'
+    for receptor in ['gabaa', 'gabab']:
+        # This key construction will fail because params expects 'L2Basket'
+        key = f'gbar_L2Basket_L2Pyr_{receptor}'  # <-- HARDCODED ASSUMPTION
+        weight = net._params[key]
+        net.add_connection(
+            src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+
+    # L5 basket → L5 pyramidal
+    src_cell = 'L5_basket'
+    target_cell = 'L5_pyramidal' 
+    lamtha = 70.0  # Layer 5 inhibitory reach
+    loc = 'soma'
+    
+    for receptor in ['gabaa', 'gabab']:
+        key = f'gbar_L5Basket_{_short_name(target_cell)}_{receptor}'
+        weight = net._params[key]
+        net.add_connection(
+            src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+
+    # 3. Inter-layer connection (simplified)
+    # L2 pyramidal → L5 pyramidal (only proximal, AMPA only)
+    src_cell = 'L2_pyramidal'
+    target_cell = 'L5_pyramidal'
+    lamtha = 3.0
+    loc = 'proximal'  # Only one location for simplicity
+    receptor = 'ampa'  # Only AMPA for simplicity
+    key = f'gbar_L2Pyr_{_short_name(target_cell)}'
+    weight = net._params[key]
+    net.add_connection(
+        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+
+    # 4. Minimal basket cell excitation (to maintain basket cell activity)
+    # L2 pyramidal → L2 inhibitory (MODIFIED)
+    src_cell = 'L2_pyramidal'
+    target_cell = 'L2_inhibitory'  # <-- CHANGED
+    lamtha = 3.0
+    loc = 'soma'
+    receptor = 'ampa'
+    # THIS WILL ALSO BREAK: Parameter expects 'L2Basket'
+    key = f'gbar_L2Pyr_{_short_name(target_cell)}'  # Will try to use 'L2_inhibitory'
+    weight = net._params[key]
+    net.add_connection(
+        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+        
+    # L5 pyramidal → L5 basket
+    src_cell = 'L5_pyramidal'
+    target_cell = 'L5_basket'
+    lamtha = 3.0
+    loc = 'soma'  
+    receptor = 'ampa'
+    key = f'gbar_L5Pyr_{_short_name(target_cell)}'
+    weight = net._params[key]
+    net.add_connection(
+        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+
+    return net
+    
 def jones_2009_model(params=None, add_drives_from_params=False,
                      legacy_mode=False, mesh_shape=(10, 10), 
                      custom_positions=None):
@@ -64,6 +209,7 @@ def jones_2009_model(params=None, add_drives_from_params=False,
         params = read_params(params)
 
     # Define cell types for Jones 2009 model
+    #ToDo: Arb stuff here..one by one
     cell_types = {
         'L2_basket': basket(cell_name=_short_name('L2_basket')),
         'L2_pyramidal': pyramidal(cell_name=_short_name('L2_pyramidal')),

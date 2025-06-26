@@ -31,6 +31,17 @@ def get_params_default(nprox=2, ndist=1):
         'L2Basket_Pois_A_weight_ampa': 0.,
         'L2Basket_Pois_A_weight_nmda': 0.,
         'L2Basket_Pois_lamtha': 0.,
+        
+        # =====================================================================
+        # NEW: L2 Inhibitory Cell Parameters (to match renamed cell type)
+        # =====================================================================
+        'L2Inhibitory_Gauss_A_weight': 0.,
+        'L2Inhibitory_Gauss_mu': 2000.,
+        'L2Inhibitory_Gauss_sigma': 3.6,
+        'L2Inhibitory_Pois_A_weight_ampa': 0.,
+        'L2Inhibitory_Pois_A_weight_nmda': 0.,
+        'L2Inhibitory_Pois_lamtha': 0.,
+        # =====================================================================
 
         # L2 Pyr params
         'L2Pyr_Gauss_A_weight': 0.,
@@ -62,10 +73,24 @@ def get_params_default(nprox=2, ndist=1):
         'gbar_L2Pyr_L2Pyr_nmda': 0.,
         'gbar_L2Basket_L2Pyr_gabaa': 0.,
         'gbar_L2Basket_L2Pyr_gabab': 0.,
+        
+        # =====================================================================
+        # NEW: Conductances for L2 Inhibitory connections
+        # =====================================================================
+        'gbar_L2Inhibitory_L2Pyr_gabaa': 0.,
+        'gbar_L2Inhibitory_L2Pyr_gabab': 0.,
+        # =====================================================================
 
         # max conductances TO L2Baskets
         'gbar_L2Pyr_L2Basket': 0.,
         'gbar_L2Basket_L2Basket': 0.,
+        
+        # =====================================================================
+        # NEW: Conductances TO L2 Inhibitory cells
+        # =====================================================================
+        'gbar_L2Pyr_L2Inhibitory': 0.,
+        'gbar_L2Inhibitory_L2Inhibitory': 0.,
+        # =====================================================================
 
         # max conductances TO L5Pyr
         'gbar_L5Pyr_L5Pyr_ampa': 0.,
@@ -74,7 +99,7 @@ def get_params_default(nprox=2, ndist=1):
         'gbar_L2Basket_L5Pyr': 0.,
         'gbar_L5Basket_L5Pyr_gabaa': 0.,
         'gbar_L5Basket_L5Pyr_gabab': 0.,
-
+        
         # max conductances TO L5Baskets
         'gbar_L5Basket_L5Basket': 0.,
         'gbar_L5Pyr_L5Basket': 0.,
@@ -109,17 +134,33 @@ def get_params_default(nprox=2, ndist=1):
         'input_prox_A_weight_L2Basket_nmda': 0.,
         'input_prox_A_weight_L5Basket_ampa': 0.,
         'input_prox_A_weight_L5Basket_nmda': 0.,
+        
+        # =====================================================================
+        # NEW: Thalamic input weights for L2 Inhibitory cells
+        # =====================================================================
+        'input_prox_A_weight_L2Inhibitory_ampa': 0.,
+        'input_prox_A_weight_L2Inhibitory_nmda': 0.,
+        # =====================================================================
+        
         'input_prox_A_delay_L2': 0.1,
         'input_prox_A_delay_L5': 1.0,
 
-        # current values, not sure where these distal values come from, need to
-        # check
+        # current values, not sure where these distal values come from, need
+        # to check
         'input_dist_A_weight_L2Pyr_ampa': 0.,
         'input_dist_A_weight_L2Pyr_nmda': 0.,
         'input_dist_A_weight_L5Pyr_ampa': 0.,
         'input_dist_A_weight_L5Pyr_nmda': 0.,
         'input_dist_A_weight_L2Basket_ampa': 0.,
         'input_dist_A_weight_L2Basket_nmda': 0.,
+
+        # =====================================================================
+        # NEW: Distal input weights for L2 Inhibitory cells
+        # =====================================================================
+        'input_dist_A_weight_L2Inhibitory_ampa': 0.,
+        'input_dist_A_weight_L2Inhibitory_nmda': 0.,
+        # =====================================================================
+
         'input_dist_A_delay_L2': 5.,
         'input_dist_A_delay_L5': 5.,
 
@@ -136,13 +177,8 @@ def get_params_default(nprox=2, ndist=1):
         'save_spec_data': 0,
         'f_max_spec': 40.,
         'spec_cmap': 'jet',  # only used in GUI
-        'dipole_scalefctr': 30e3,  # scale factor for dipole - default at 30e3
-        # based on scaling needed to match model ongoing rhythms from
-        # jones 2009 - for ERPs can use 300
-        # for ongoing rhythms + ERPs ... use ... ?
-        # window for smoothing (box filter) - 15 ms from jones 2009; shorten
+        'dipole_scalefctr': 30e3,  # scale factor for dipole
         'dipole_smooth_win': 15.0,
-        # in case want to look at higher frequency activity
         'save_figs': 0,
         'save_dpl': 0,  # whether to write dipole output to a file
         'record_vsoma': 0,  # whether to record somatic voltages
@@ -152,14 +188,9 @@ def get_params_default(nprox=2, ndist=1):
         'record_ca': 0,  # whether to record calcium concentration
 
         # numerics
-        # N_trials of 1 means that seed is set by rank
         'N_trials': 1,
 
-        # prng_state is a string for a filename containing the
-        # random state one wants to use
-        # prng seed cores are the base integer seed for the specific
-        # prng object for a specific random number stream
-        # 'prng_state': None,
+        # prng seed cores
         'prng_seedcore_input_prox': 0,
         'prng_seedcore_input_dist': 0,
         'prng_seedcore_extpois': 0,
@@ -186,6 +217,7 @@ def get_params_default(nprox=2, ndist=1):
     p.update(p_ev_dist)
 
     return p
+
 
 # return dict with default params (empty) for evoked inputs;
 # n is number of evoked inputs

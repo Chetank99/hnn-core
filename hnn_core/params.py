@@ -119,7 +119,7 @@ def _long_name(short_name):
 
 def _short_name(short_name):
     long_name = dict(L2_basket='L2Basket', L5_basket='L5Basket',
-                     L2_pyramidal='L2Pyr', L5_pyramidal='L5Pyr')
+                     L2_pyramidal='L2Pyr', L5_pyramidal='L5Pyr',L2_inhibitory='L2Pyr')
     if short_name in long_name:
         return long_name[short_name]
     return short_name
@@ -329,6 +329,8 @@ class Params(dict):
 
     def __getitem__(self, key):
         """Return a subset of parameters."""
+        import pdb
+        pdb.set_trace()
         keys = self.keys()
         if key in keys:
             return dict.__getitem__(self, key)
