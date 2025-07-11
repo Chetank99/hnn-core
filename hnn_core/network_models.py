@@ -12,93 +12,10 @@ from .externals.mne import _validate_type
 from .cells_default import pyramidal, basket
 import numpy as np
 from .cell import Cell, Section
-from .cells_default import pyramidal, basket, _get_basket_syn_props
+from .cells_default import pyramidal, basket, _get_basket_syn_props, CellTypeBuilder, custom_cell_factory
 
 
-class CellTypeBuilder:
-    """Helper class to build custom cell types."""
-    
-    @staticmethod
-    def create_interneuron(name, pos=(0, 0, 0), gid=None):
-        """Create a custom interneuron."""
-        # Define custom soma
-        soma = Section(
-            L=30.,           # Smaller than basket
-            diam=15.,        # Thinner
-            cm=0.85,
-            Ra=200.,
-        )
-        soma._end_pts = [[0, 0, 0], [0, 0, 30.]]
-        
-        # Custom synapses
-        synapses = {
-            'ampa': {'e': 0, 'tau1': 0.3, 'tau2': 3.},      
-            'gabaa': {'e': -80, 'tau1': 0.3, 'tau2': 3.},   
-            'nmda': {'e': 0, 'tau1': 0.5, 'tau2': 15.}      
-        }
-        
-        # Set up soma properties
-        soma.syns = list(synapses.keys())
-        soma.mechs = {'hh2': dict()}
-        
-        sections = {'soma': soma}
-        sect_loc = dict(proximal=['soma'], distal=['soma'])
-        
-        return Cell(
-            name, pos,
-            sections=sections,
-            synapses=synapses,
-            sect_loc=sect_loc,
-            cell_tree=None,
-            gid=gid
-        )
-    
-    @staticmethod
-    def create_stellate(name, pos=(0, 0, 0), gid=None):
-        """Create a stellate cell."""
-        # Define multiple dendrites
-        soma = Section(L=25., diam=20., cm=1.0, Ra=150.)
-        soma._end_pts = [[0, 0, 0], [0, 0, 25.]]
-        
-        dend1 = Section(L=100., diam=3., cm=1.0, Ra=150.)
-        dend1._end_pts = [[0, 0, 25], [50, 0, 75]]
-        
-        dend2 = Section(L=100., diam=3., cm=1.0, Ra=150.)
-        dend2._end_pts = [[0, 0, 25], [-50, 0, 75]]
-        
-        sections = {
-            'soma': soma,
-            'dend1': dend1,
-            'dend2': dend2
-        }
-        
-        synapses = _get_basket_syn_props()  # Use default for now
-        
-        # section properties
-        for sec_name, section in sections.items():
-            section.syns = list(synapses.keys())
-            section.mechs = {'hh2': dict()}
-        
-        sect_loc = dict(
-            proximal=['soma'],
-            distal=['dend1', 'dend2']
-        )
-        
-        cell_tree = {
-            ('soma', 0): [('soma', 1)],
-            ('soma', 1): [('dend1', 0), ('dend2', 0)],
-            ('dend1', 0): [('dend1', 1)],
-            ('dend2', 0): [('dend2', 1)]
-        }
-        
-        return Cell(
-            name, pos,
-            sections=sections,
-            synapses=synapses,
-            sect_loc=sect_loc,
-            cell_tree=cell_tree,
-            gid=gid
-        )
+#ToDo: Shift to cells_default -> import here to use when you create a new model.......DONE
 
 def custom_cell_types_model(mesh_shape=(5, 5)):
     """Model with completely custom cell types."""
@@ -176,17 +93,6 @@ def custom_cell_types_model(mesh_shape=(5, 5)):
     
     return net
 
-def custom_cell_factory(cell_type_name):
-    """Factory function to create custom cell types."""
-    def create_cell(pos=(0, 0, 0), gid=None):
-        if cell_type_name == 'L2_interneuron':
-            return CellTypeBuilder.create_interneuron(cell_type_name, pos, gid)
-        elif cell_type_name == 'L4_stellate':
-            return CellTypeBuilder.create_stellate(cell_type_name, pos, gid)
-        else:
-            raise ValueError(f"Unknown custom cell type: {cell_type_name}")
-    return create_cell
-
 def random_model(params=None, add_drives_from_params=False,
                                    legacy_mode=False, mesh_shape=(10, 10)):
     """
@@ -251,11 +157,10 @@ def random_model(params=None, add_drives_from_params=False,
     
     return net
 
-def jones_2009_model(params=None, add_drives_from_params=False,
-                     legacy_mode=False, mesh_shape=(10, 10), 
-                     custom_positions=None):
-    """Instantiate the network model described in
-    Jones et al. J. of Neurophys. 2009 [1]_
+def jones_2009_model(
+    params=None, add_drives_from_params=False, legacy_mode=False, mesh_shape=(10, 10)
+):
+    """Instantiate the network model described in Jones et al. 2009 [1]_
 
     Parameters
     ----------
@@ -287,162 +192,181 @@ def jones_2009_model(params=None, add_drives_from_params=False,
     connectivity pattern is applied between cells. Inhibitory basket cells are
     present at a 1:3-ratio.
 
+    This network was first described in Jones et al. 2009 [1]_ , and this code provides
+    the implementation used in Neymotin et al. 2020 [2]_ .
+
     References
     ----------
     .. [1] Jones, Stephanie R., et al. "Quantitative Analysis and
            Biophysically Realistic Neural Modeling of the MEG Mu Rhythm:
            Rhythmogenesis and Modulation of Sensory-Evoked Responses."
            Journal of Neurophysiology 102, 3554–3572 (2009).
+           https://doi.org/10.1152/jn.00535.2009
+
+    .. [2] Neymotin, Samuel A, et al. 2020. "Human Neocortical Neurosolver (HNN), a New
+           Software Tool for Interpreting the Cellular and Network Origin of Human
+           MEG/EEG Data." eLife 9 (January):e51214. https://doi.org/10.7554/eLife.51214
 
     """
     hnn_core_root = op.dirname(hnn_core.__file__)
     if params is None:
-        params = op.join(hnn_core_root, 'param', 'default.json')
+        params = op.join(hnn_core_root, "param", "default.json")
     if isinstance(params, str):
         params = read_params(params)
 
-    # Define cell types for Jones 2009 model
+    # Define cell types using short names
     cell_types = {
-        'L2_basket': basket(cell_name=_short_name('L2_basket')),
-        'L2_pyramidal': pyramidal(cell_name=_short_name('L2_pyramidal')),
-        'L5_basket': basket(cell_name=_short_name('L5_basket')),
-        'L5_pyramidal': pyramidal(cell_name=_short_name('L5_pyramidal'))
+        'L2Basket': basket(cell_name='L2Basket'),
+        'L2Pyr': pyramidal(cell_name='L2Pyr'),
+        'L5Basket': basket(cell_name='L5Basket'),
+        'L5Pyr': pyramidal(cell_name='L5Pyr')
     }
     
     # Create layer positions
     layer_dict = _create_cell_coords(
         n_pyr_x=mesh_shape[0],
         n_pyr_y=mesh_shape[1],
-        zdiff=1307.4,  # Default layer separation
-        inplane_distance=1.0  # Default in-plane distance
+        zdiff=1307.4,
+        inplane_distance=1.0
     )
     
-    # Map cell types to layer positions
+    # Map short names to positions
     pos_dict = {
-        'L5_pyramidal': layer_dict['L5_bottom'],
-        'L2_pyramidal': layer_dict['L2_bottom'],
-        'L5_basket': layer_dict['L5_mid'],
-        'L2_basket': layer_dict['L2_mid'],
+        'L5Pyr': layer_dict['L5_bottom'],
+        'L2Pyr': layer_dict['L2_bottom'],
+        'L5Basket': layer_dict['L5_mid'],
+        'L2Basket': layer_dict['L2_mid'],
         'origin': layer_dict['origin']
     }
     
-    # Create network with cell types and positions
-    net = Network(params, 
-                  add_drives_from_params=add_drives_from_params,
-                  legacy_mode=legacy_mode, 
-                  mesh_shape=mesh_shape,
-                  pos_dict=pos_dict,
-                  cell_types=cell_types)
-    
+    # Create network with short names
+    net = Network(
+        params,
+        add_drives_from_params=add_drives_from_params,
+        legacy_mode=legacy_mode,
+        mesh_shape=mesh_shape,
+        pos_dict=pos_dict,
+        cell_types=cell_types
+    )
+
     delay = net.delay
 
-    # === Add all connections (unchanged from original) ===
+    # beloww i am using short names directly without _short_name() calls
     
     # layer2 Pyr -> layer2 Pyr
     # layer5 Pyr -> layer5 Pyr
     lamtha = 3.0
-    loc = 'proximal'
-    for target_cell in ['L2_pyramidal', 'L5_pyramidal']:
-        for receptor in ['nmda', 'ampa']:
-            key = (
-                f'gbar_{_short_name(target_cell)}_{_short_name(target_cell)}_{receptor}'
-            )
+    loc = "proximal"
+    for target_cell in ["L2Pyr", "L5Pyr"]:  # short names directly
+        for receptor in ["nmda", "ampa"]:
+            key = f"gbar_{target_cell}_{target_cell}_{receptor}"
             weight = net._params[key]
             net.add_connection(
-                target_cell, target_cell, loc, receptor, weight,
-                delay, lamtha, allow_autapses=False)
+                target_cell,
+                target_cell,
+                loc,
+                receptor,
+                weight,
+                delay,
+                lamtha,
+                allow_autapses=False,
+            )
 
     # layer2 Basket -> layer2 Pyr
-    src_cell = 'L2_basket'
-    target_cell = 'L2_pyramidal'
-    lamtha = 50.
-    loc = 'soma'
-    for receptor in ['gabaa', 'gabab']:
-        key = f'gbar_L2Basket_L2Pyr_{receptor}'
+    src_cell = "L2Basket"
+    target_cell = "L2Pyr"
+    lamtha = 50.0
+    loc = "soma"
+    for receptor in ["gabaa", "gabab"]:
+        key = f"gbar_{src_cell}_{target_cell}_{receptor}"
         weight = net._params[key]
-        net.add_connection(
-            src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+        net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     # layer5 Basket -> layer5 Pyr
-    src_cell = 'L5_basket'
-    target_cell = 'L5_pyramidal'
-    lamtha = 70.
-    loc = 'soma'
-    for receptor in ['gabaa', 'gabab']:
-        key = f'gbar_L5Basket_{_short_name(target_cell)}_{receptor}'
+    src_cell = "L5Basket"
+    target_cell = "L5Pyr"
+    lamtha = 70.0
+    loc = "soma"
+    for receptor in ["gabaa", "gabab"]:
+        key = f"gbar_{src_cell}_{target_cell}_{receptor}"
         weight = net._params[key]
-        net.add_connection(
-            src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+        net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     # layer2 Pyr -> layer5 Pyr
-    src_cell = 'L2_pyramidal'
-    lamtha = 3.
-    receptor = 'ampa'
-    for loc in ['proximal', 'distal']:
-        key = f'gbar_L2Pyr_{_short_name(target_cell)}'
+    src_cell = "L2Pyr"
+    target_cell = "L5Pyr"
+    lamtha = 3.0
+    receptor = "ampa"
+    for loc in ["proximal", "distal"]:
+        key = f"gbar_{src_cell}_{target_cell}"
         weight = net._params[key]
-        net.add_connection(
-            src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+        net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     # layer2 Basket -> layer5 Pyr
-    src_cell = 'L2_basket'
-    lamtha = 50.
-    key = f'gbar_L2Basket_{_short_name(target_cell)}'
+    src_cell = "L2Basket"
+    target_cell = "L5Pyr"
+    lamtha = 50.0
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
-    loc = 'distal'
-    receptor = 'gabaa'
-    net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+    loc = "distal"
+    receptor = "gabaa"
+    net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     # xx -> layer2 Basket
-    src_cell = 'L2_pyramidal'
-    target_cell = 'L2_basket'
-    lamtha = 3.
-    key = f'gbar_L2Pyr_{_short_name(target_cell)}'
+    src_cell = "L2Pyr"
+    target_cell = "L2Basket"
+    lamtha = 3.0
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
-    loc = 'soma'
-    receptor = 'ampa'
-    net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+    loc = "soma"
+    receptor = "ampa"
+    net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
-    src_cell = 'L2_basket'
-    lamtha = 20.
-    key = f'gbar_L2Basket_{_short_name(target_cell)}'
+    src_cell = "L2Basket"
+    target_cell = "L2Basket"
+    lamtha = 20.0
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
-    loc = 'soma'
-    receptor = 'gabaa'
-    net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+    loc = "soma"
+    receptor = "gabaa"
+    net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     # xx -> layer5 Basket
-    src_cell = 'L5_basket'
-    target_cell = 'L5_basket'
-    lamtha = 20.
-    loc = 'soma'
-    receptor = 'gabaa'
-    key = f'gbar_L5Basket_{_short_name(target_cell)}'
+    src_cell = "L5Basket"
+    target_cell = "L5Basket"
+    lamtha = 20.0
+    loc = "soma"
+    receptor = "gabaa"
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
     net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha,
-        allow_autapses=False)
+        src_cell,
+        target_cell,
+        loc,
+        receptor,
+        weight,
+        delay,
+        lamtha,
+        allow_autapses=False,
+    )
 
-    src_cell = 'L5_pyramidal'
-    lamtha = 3.
-    key = f'gbar_L5Pyr_{_short_name(target_cell)}'
+    src_cell = "L5Pyr"
+    target_cell = "L5Basket"
+    lamtha = 3.0
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
-    loc = 'soma'
-    receptor = 'ampa'
-    net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+    loc = "soma"
+    receptor = "ampa"
+    net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
-    src_cell = 'L2_pyramidal'
-    lamtha = 3.
-    key = f'gbar_L2Pyr_{_short_name(target_cell)}'
+    src_cell = "L2Pyr"
+    target_cell = "L5Basket"
+    lamtha = 3.0
+    key = f"gbar_{src_cell}_{target_cell}"
     weight = net._params[key]
-    loc = 'soma'
-    receptor = 'ampa'
-    net.add_connection(
-        src_cell, target_cell, loc, receptor, weight, delay, lamtha)
+    loc = "soma"
+    receptor = "ampa"
+    net.add_connection(src_cell, target_cell, loc, receptor, weight, delay, lamtha)
 
     return net
 

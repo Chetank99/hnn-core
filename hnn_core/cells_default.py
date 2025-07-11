@@ -3,6 +3,119 @@
 # Authors: Mainak Jas <mjas@mgh.harvard.edu>
 #          Sam Neymotin <samnemo@gmail.com>
 
+class CellTypeBuilder:
+    """Helper class to build custom cell types."""
+    
+    @staticmethod
+    def create_interneuron(name, pos=(0, 0, 0), gid=None):
+        """Create a custom interneuron."""
+        # Define custom soma
+        soma = Section(
+            L=30.,           # Smaller than basket
+            diam=15.,        # Thinner
+            cm=0.85,
+            Ra=200.,
+        )
+        soma._end_pts = [[0, 0, 0], [0, 0, 30.]]
+        
+        # Custom synapses
+        synapses = {
+            'ampa': {'e': 0, 'tau1': 0.3, 'tau2': 3.},      
+            'gabaa': {'e': -80, 'tau1': 0.3, 'tau2': 3.},   
+            'nmda': {'e': 0, 'tau1': 0.5, 'tau2': 15.}      
+        }
+        
+        # Set up soma properties
+        soma.syns = list(synapses.keys())
+        soma.mechs = {'hh2': dict()}
+        
+        sections = {'soma': soma}
+        sect_loc = dict(proximal=['soma'], distal=['soma'])
+        
+        return Cell(
+            name, pos,
+            sections=sections,
+            synapses=synapses,
+            sect_loc=sect_loc,
+            cell_tree=None,
+            gid=gid
+        )
+    
+    @staticmethod
+    def create_stellate(name, pos=(0, 0, 0), gid=None):
+        """Create a stellate cell."""
+        # Define multiple dendrites
+        soma = Section(L=25., diam=20., cm=1.0, Ra=150.)
+        soma._end_pts = [[0, 0, 0], [0, 0, 25.]]
+        
+        dend1 = Section(L=100., diam=3., cm=1.0, Ra=150.)
+        dend1._end_pts = [[0, 0, 25], [50, 0, 75]]
+        
+        dend2 = Section(L=100., diam=3., cm=1.0, Ra=150.)
+        dend2._end_pts = [[0, 0, 25], [-50, 0, 75]]
+        
+        sections = {
+            'soma': soma,
+            'dend1': dend1,
+            'dend2': dend2
+        }
+        
+        synapses = _get_basket_syn_props()  # Use default for now
+        
+        # section properties
+        for sec_name, section in sections.items():
+            section.syns = list(synapses.keys())
+            section.mechs = {'hh2': dict()}
+        
+        sect_loc = dict(
+            proximal=['soma'],
+            distal=['dend1', 'dend2']
+        )
+        
+        cell_tree = {
+            ('soma', 0): [('soma', 1)],
+            ('soma', 1): [('dend1', 0), ('dend2', 0)],
+            ('dend1', 0): [('dend1', 1)],
+            ('dend2', 0): [('dend2', 1)]
+        }
+        
+        return Cell(
+            name, pos,
+            sections=sections,
+            synapses=synapses,
+            sect_loc=sect_loc,
+            cell_tree=cell_tree,
+            gid=gid
+        )
+
+
+def custom_cell_factory(cell_type_name):
+    """Factory function to create custom cell types."""
+    def create_cell(pos=(0, 0, 0), gid=None):
+        method_name = f"create_{cell_type_name.split('_', 1)[-1]}"
+        builder_fn = getattr(CellTypeBuilder, method_name, None)
+
+        if builder_fn is None or not callable(builder_fn):
+            raise ValueError(f"No builder method found for: {cell_type_name}")
+        
+        return builder_fn(cell_type_name, pos, gid)
+
+    return create_cell
+
+'''
+hardcoded initial version
+def custom_cell_factory(cell_type_name):
+    """Factory function to create custom cell types."""
+    def create_cell(pos=(0, 0, 0), gid=None):
+        if cell_type_name == 'L2_interneuron':
+            return CellTypeBuilder.create_interneuron(cell_type_name, pos, gid)
+        elif cell_type_name == 'L4_stellate':
+            return CellTypeBuilder.create_stellate(cell_type_name, pos, gid)
+        else:
+            raise ValueError(f"Unknown custom cell type: {cell_type_name}")
+    return create_cell
+'''
+
 import numpy as np
 from functools import partial
 from .cell import Cell, Section
@@ -378,22 +491,15 @@ def basket(cell_name, pos=(0, 0, 0), gid=None):
     """
 def basket(cell_name, pos=(0, 0, 0), gid=None):
     """Get layer 2 / layer 5 basket cells."""
-    # Check for specific known types first
-    if cell_name in ['L2Basket', 'L2Random']:
+    if cell_name in ['L2_basket', 'L5_basket']:
+        cell_name = _short_name(cell_name)
+    
+    if cell_name in ['L2Basket']:
         sect_loc = dict(proximal=['soma'], distal=['soma'])
     elif cell_name == 'L5Basket':
         sect_loc = dict(proximal=['soma'], distal=[])
-    # Then check for patterns for flexibility
-    elif 'L2' in cell_name:
-        sect_loc = dict(proximal=['soma'], distal=['soma'])
-    elif 'L5' in cell_name:
-        sect_loc = dict(proximal=['soma'], distal=[])
     else:
-        # Default behavior
-        sect_loc = dict(proximal=['soma'], distal=['soma'])
-        import warnings
-        warnings.warn(f"Unknown basket cell type: {cell_name}. Using L2-like configuration.")
-
+        raise ValueError(f"Unknown basket cell type: {cell_name}")
     sections = dict()
     sections['soma'] = _get_basket_soma(cell_name)
     synapses = _get_basket_syn_props()
@@ -424,12 +530,9 @@ def pyramidal(cell_name, pos=(0, 0, 0), override_params=None, gid=None):
         The GID is an integer from 0 to n_cells, or None if the cell is not
         yet attached to a network. Once the GID is set, it cannot be changed.
     """
-    if cell_name == 'L2_pyramidal':
-        cell_name = 'L2Pyr'
-    elif cell_name == 'L5_pyramidal':
-        cell_name = 'L5Pyr'
+    if cell_name in ['L2_pyramidal', 'L5_pyramidal']:
+        cell_name = _short_name(cell_name)
     
-    # Now check with short names
     if cell_name == 'L2Pyr':
         return _cell_L2Pyr(override_params, pos=pos, gid=gid)
     elif cell_name == 'L5Pyr':

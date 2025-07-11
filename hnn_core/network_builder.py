@@ -329,8 +329,10 @@ class NetworkBuilder(object):
 
         self._clear_last_network_objects()
 
-        self._nrn_dipoles['L5_pyramidal'] = h.Vector()
-        self._nrn_dipoles['L2_pyramidal'] = h.Vector()
+        self._nrn_dipoles = {
+            'L2_pyramidal': h.Vector(),
+            'L5_pyramidal': h.Vector()
+        }
 
         self._gid_assign()
 
@@ -436,8 +438,8 @@ class NetworkBuilder(object):
                 cell.pos = self.net.pos_dict[src_type][gid_idx]
 
                 # instantiate NEURON object
-                if src_type in ('L2_pyramidal', 'L5_pyramidal'):
-                    cell.build(sec_name_apical='apical_trunk')
+                if src_type in ("L2Pyr", "L5Pyr"):
+                    cell.build(sec_name_apical="apical_trunk")
                 else:
                     cell.build()
                 # add tonic biases
@@ -501,13 +503,15 @@ class NetworkBuilder(object):
                     target_type = self.net.gid_to_type(target_gid)
                     target_cell = self._cells[target_filter[target_gid]]
                     connection_name = f'{_short_name(src_type)}_'\
-                                      f'{_short_name(target_type)}_{receptor}'
+                                    f'{_short_name(target_type)}_{receptor}'
                     if connection_name not in self.ncs:
                         self.ncs[connection_name] = list()
-                    pos_idx = src_gid - net.gid_ranges[_long_name(src_type)][0]
+                    
+                    # remove _long_name conversion since gid_ranges now uses short names
+                    pos_idx = src_gid - net.gid_ranges[src_type][0]
                     # NB pos_dict for this drive must include ALL cell types!
-                    nc_dict['pos_src'] = net.pos_dict[
-                        _long_name(src_type)][pos_idx]
+                    # remove _long_name conversion since pos_dict now uses short names
+                    nc_dict['pos_src'] = net.pos_dict[src_type][pos_idx]
 
                     # get synapse locations
                     syn_keys = list()
@@ -562,17 +566,29 @@ class NetworkBuilder(object):
         for nrn_dpl in self._nrn_dipoles.values():
             if nrn_dpl.size() != n_samples:
                 nrn_dpl.append(h.Vector(n_samples, 0))
-
         for cell in self._cells:
             # add dipoles across neurons on the current thread
             if hasattr(cell, 'dipole'):
                 if cell.dipole.size() != n_samples:
                     raise ValueError(f"n_samples does not match the size "
-                                     f"of at least one cell's dipole vector. "
-                                     f"Got n_samples={n_samples}, {cell.name}."
-                                     f"dipole.size()={cell.dipole.size()}.")
-                nrn_dpl = self._nrn_dipoles[_long_name(cell.name)]
-                nrn_dpl.add(cell.dipole)
+                                    f"of at least one cell's dipole vector. "
+                                    f"Got n_samples={n_samples}, {cell.name}."
+                                    f"dipole.size()={cell.dipole.size()}.")
+                
+                dipole_key = None
+                cell_name_lower = cell.name.lower()
+                
+                # Check for L2 pyramidal cells (handles L2Pyr, L2_pyramidal, etc.)
+                if 'l2' in cell_name_lower and ('pyr' in cell_name_lower or 'pyramidal' in cell_name_lower):
+                    dipole_key = 'L2_pyramidal'
+                # Check for L5 pyramidal cells (handles L5Pyr, L5_pyramidal, etc.)
+                elif 'l5' in cell_name_lower and ('pyr' in cell_name_lower or 'pyramidal' in cell_name_lower):
+                    dipole_key = 'L5_pyramidal'
+                
+                # Add the dipole if we found a valid pyramidal cell
+                if dipole_key and dipole_key in self._nrn_dipoles:
+                    nrn_dpl = self._nrn_dipoles[dipole_key]
+                    nrn_dpl.add(cell.dipole)
 
             self._vsec[cell.gid] = cell.vsec
             self._isec[cell.gid] = cell.isec
@@ -616,20 +632,21 @@ class NetworkBuilder(object):
             seclist.wholetree(sec=cell._nrn_sections['soma'])
             for sect in seclist:
                 for seg in sect:
-                    if cell.name == 'L2Pyr':
+                    # Handle both short and long names
+                    if cell.name in ['L2Pyr', 'L2_pyramidal']:
                         seg.v = -71.46
-                    elif cell.name == 'L5Pyr':
-                        if sect.name() == 'L5Pyr_apical_1':
+                    elif cell.name in ['L5Pyr', 'L5_pyramidal']:
+                        if sect.name() in ['L5Pyr_apical_1', 'L5_pyramidal_apical_1']:
                             seg.v = -71.32
-                        elif sect.name() == 'L5Pyr_apical_2':
+                        elif sect.name() in ['L5Pyr_apical_2', 'L5_pyramidal_apical_2']:
                             seg.v = -69.08
-                        elif sect.name() == 'L5Pyr_apical_tuft':
+                        elif sect.name() in ['L5Pyr_apical_tuft', 'L5_pyramidal_apical_tuft']:
                             seg.v = -67.30
                         else:
                             seg.v = -72.
-                    elif cell.name == 'L2Basket':
+                    elif cell.name in ['L2Basket', 'L2_basket']:
                         seg.v = -64.9737
-                    elif cell.name == 'L5Basket':
+                    elif cell.name in ['L5Basket', 'L5_basket']:
                         seg.v = -64.9737
 
     def _clear_neuron_objects(self):

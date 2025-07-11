@@ -110,14 +110,15 @@ def read_params(params_fname, file_contents=None):
 
 
 def _long_name(short_name):
-    """Make this function more flexible for arbitrary names"""
-    long_name = dict(L2Basket='L2_basket', L5Basket='L5_basket',
-                     L2Pyr='L2_pyramidal', L5Pyr='L5_pyramidal',
-                     L2Random='L2_random')  # Add new mapping
-    if short_name in long_name:
-        return long_name[short_name]
-    return short_name
-
+    """Convert short names to long names for backward compatibility."""
+    long_name = {
+        'L2Basket': 'L2_basket',
+        'L5Basket': 'L5_basket',
+        'L2Pyr': 'L2_pyramidal',
+        'L5Pyr': 'L5_pyramidal',
+        'L2Random': 'L2_random'
+    }
+    return long_name.get(short_name, short_name)
 
 def _short_name(cell_name):
     """Convert long cell names to short names."""
@@ -126,15 +127,9 @@ def _short_name(cell_name):
         'L5_basket': 'L5Basket',
         'L2_pyramidal': 'L2Pyr',
         'L5_pyramidal': 'L5Pyr',
-        'L2_random': 'L2Random'  # Add new mapping
+        'L2_random': 'L2Random'
     }
-    if cell_name in mapping:
-        return mapping[cell_name]
-    # For unmapped names, just remove underscores and capitalize appropriately
-    parts = cell_name.split('_')
-    if len(parts) == 2:
-        return parts[0] + parts[1].capitalize()
-    return cell_name.replace('_', '')
+    return mapping.get(cell_name, cell_name)
 
 def _extract_bias_specs_from_hnn_params(params, cellname_list):
     """Create 'bias specification' dicts from saved parameters"""

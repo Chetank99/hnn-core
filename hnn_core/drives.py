@@ -17,13 +17,22 @@ def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
     Note that target cell types of a drive are inferred from the synaptic
     weight and delay parameters keys defined by the user.
     """
-
-    # allow passing weights as None, but make iterable here
-    if weights_ampa is None:
-        weights_ampa = dict()
-    if weights_nmda is None:
-        weights_nmda = dict()
-
+    from .params import _short_name  # Add this import
+    
+    # Helper function to convert dictionary keys to short names
+    def convert_to_short_names(d):
+        if d is None:
+            return dict()
+        converted = {}
+        for key, value in d.items():
+            short_key = _short_name(key)
+            converted[short_key] = value
+        return converted
+    
+    # Convert all input dictionaries to use short names
+    weights_ampa = convert_to_short_names(weights_ampa)
+    weights_nmda = convert_to_short_names(weights_nmda)
+    
     weights_by_type = {cell_type: dict() for cell_type in
                        (set(weights_ampa.keys()) | set(weights_nmda.keys()))}
     for cell_type in weights_ampa:
@@ -35,9 +44,9 @@ def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
     if not target_populations:
         raise ValueError('No target cell types have been given a synaptic '
                          'weight for this drive.')
-    # Distal drives should not target L5 basket cells according to the
-    # canonical Jones model
-    if location == 'distal' and 'L5_basket' in target_populations:
+    
+    # Update the check to use short name
+    if location == 'distal' and 'L5Basket' in target_populations:
         raise ValueError('Due to physiological/anatomical constraints, '
                          'a distal drive cannot target L5_basket cell types. '
                          'L5_basket cell types must remain undefined by '
@@ -46,11 +55,12 @@ def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
                          'Therefore, please remove the L5_basket entries '
                          'from the corresponding dictionaries.')
 
+    # Handle synaptic_delays
     if isinstance(synaptic_delays, float):
         delays_by_type = {cell_type: synaptic_delays for cell_type in
                           target_populations}
     else:
-        delays_by_type = synaptic_delays.copy()
+        delays_by_type = convert_to_short_names(synaptic_delays)
 
     if set(delays_by_type.keys()) != target_populations:
         raise ValueError('synaptic_delays is either a common float or needs '
@@ -58,11 +68,12 @@ def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
                          'types defined in weights_ampa and weights_nmda '
                          f'({target_populations})')
 
+    # Handle probability
     if isinstance(probability, float):
         probability_by_type = {cell_type: probability for cell_type in
                                target_populations}
     else:
-        probability_by_type = probability.copy()
+        probability_by_type = convert_to_short_names(probability)
 
     if set(probability_by_type.keys()) != target_populations:
         raise ValueError('probability is either a common float or needs '

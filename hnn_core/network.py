@@ -220,6 +220,23 @@ def pick_connection(net, src_gids=None, target_gids=None,
     # Convert src and target gids to lists
     valid_srcs = list(net.gid_ranges.keys())  # includes drives as srcs
     valid_targets = list(net.cell_types.keys())
+    # Update valid lists to include both short and long names for backward compatibility
+    from .params import _long_name, _short_name
+    additional_srcs = []
+    additional_targets = []    
+    for key in list(valid_srcs):
+        long_form = _long_name(key)
+        if long_form != key and long_form not in valid_srcs:
+            additional_srcs.append(long_form)
+    
+    for key in list(valid_targets):
+        long_form = _long_name(key)
+        if long_form != key and long_form not in valid_targets:
+            additional_targets.append(long_form)
+    
+    valid_srcs.extend(additional_srcs)
+    valid_targets.extend(additional_targets)
+
     src_gids_checked = _check_gids(src_gids, net.gid_ranges,
                                    valid_srcs, 'src_gids', same_type=False)
     target_gids_checked = _check_gids(target_gids, net.gid_ranges,
@@ -407,25 +424,32 @@ class Network:
                     self._add_cell_type(cell_name, self.pos_dict[cell_name],
                                         cell_template=cell_template)
         else:
-            # Default behavior - create standard network
+            # Default behavior - create standard network...now with short Names
             cell_types_default = {
-                'L2_basket': basket(cell_name=_short_name('L2_basket')),
-                'L2_pyramidal': pyramidal(cell_name=_short_name('L2_pyramidal')),
-                'L5_basket': basket(cell_name=_short_name('L5_basket')),
-                'L5_pyramidal': pyramidal(cell_name=_short_name('L5_pyramidal'))
+                'L2Basket': basket(cell_name='L2Basket'),
+                'L2Pyr': pyramidal(cell_name='L2Pyr'),
+                'L5Basket': basket(cell_name='L5Basket'),
+                'L5Pyr': pyramidal(cell_name='L5Pyr')
             }
             
             self.set_cell_positions(
                 inplane_distance=self._inplane_distance,
                 layer_separation=self._layer_separation,
             )
+            # Map short names to positions
+            short_to_long_pos = {
+                'L2Basket': 'L2_basket',
+                'L2Pyr': 'L2_pyramidal',
+                'L5Basket': 'L5_basket',
+                'L5Pyr': 'L5_pyramidal'
+            }
             
-            # Add default cell types
-            for cell_name in cell_types_default:
-                self._add_cell_type(
-                    cell_name, self.pos_dict[cell_name], 
-                    cell_template=cell_types_default[cell_name]
-                )
+            # Add default cell types....with short names
+            for short_name, cell_template in cell_types_default.items():
+                long_name = short_to_long_pos[short_name]
+                if long_name in self.pos_dict:
+                    self._add_cell_type(short_name, self.pos_dict[long_name], 
+                                        cell_template=cell_template)
         
         if add_drives_from_params:
             _add_drives_from_params(self)
@@ -1023,12 +1047,42 @@ class Network:
         Attached drive is stored in self.external_drives[name]
         self.pos_dict is updated, and self._update_gid_ranges() called
         """
+        from .params import _short_name
         if name in self.external_drives:
             raise ValueError(f"Drive {name} already defined")
 
+        def convert_dict_keys(d):
+            if d is None:
+                return None
+            converted = {}
+            for key, value in d.items():
+                # Check if key exists in cell_types directly
+                if key in self.cell_types:
+                    converted[key] = value
+                # Try short name version
+                else:
+                    short_key = _short_name(key)
+                    if short_key in self.cell_types:
+                        converted[short_key] = value
+                    else:
+                        # Keep original if neither works (will be caught later)
+                        converted[key] = value
+            return converted
+        # now convert the dicts
+        weights_ampa = convert_dict_keys(weights_ampa)
+        weights_nmda = convert_dict_keys(weights_nmda)
+        synaptic_delays = convert_dict_keys(synaptic_delays) if isinstance(synaptic_delays, dict) else synaptic_delays
+        probability = convert_dict_keys(probability) if isinstance(probability, dict) else probability
+        
+        # allow passing weights as None
+        (target_populations, weights_by_type, delays_by_type,
+        probability_by_type) = \
+            _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
+                                location, probability)
+
         _validate_type(
             probability, (float, dict), 'probability', 'float or dict')
-        # allow passing weights as None, convert to dict here
+        # allow passing weights as None
         (target_populations, weights_by_type, delays_by_type,
          probability_by_type) = \
             _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
@@ -1374,11 +1428,23 @@ class Network:
         if isinstance(target_gids, int):
             target_gids = [[target_gids] for _ in range(len(src_gids))]
         elif isinstance(target_gids, str):
+            # is it s a valid target cell type
             _check_option("target_gids", target_gids, valid_target_cells)
-            target_gids = [
-                list(self.gid_ranges[_long_name(target_gids)])
-                for _ in range(len(src_gids))
-            ]
+            
+            # checking if target_gids exists directly in gid_ranges
+            if target_gids in self.gid_ranges:
+                target_gids = [
+                    list(self.gid_ranges[target_gids])
+                    for _ in range(len(src_gids))
+                ]
+            # if not... try the long name version for backward compatibility
+            elif _long_name(target_gids) in self.gid_ranges:
+                target_gids = [
+                    list(self.gid_ranges[_long_name(target_gids)])
+                    for _ in range(len(src_gids))
+                ]
+            else:
+                raise KeyError(f"target_gids '{target_gids}' not found in gid_ranges")
         elif isinstance(target_gids, range):
             target_gids = [list(target_gids) for _ in range(len(src_gids))]
         elif isinstance(target_gids, list) and all(

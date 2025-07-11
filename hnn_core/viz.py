@@ -426,7 +426,7 @@ def plot_spikes_hist(cell_response, trial_idx=None, ax=None, spike_types=None,
     unique_types = np.unique(spike_types_data)
     spike_types_mask = {s_type: np.isin(spike_types_data, s_type)
                         for s_type in unique_types}
-    cell_types = ['L5_pyramidal', 'L5_basket', 'L2_pyramidal', 'L2_basket']
+    cell_types = ['L5Pyr', 'L5Basket', 'L2Pyr', 'L2Basket']
     input_types = np.setdiff1d(unique_types, cell_types)
 
     if isinstance(spike_types, str):
@@ -620,9 +620,16 @@ def plot_spikes_raster(cell_response, trial_idx=None, ax=None, show=True,
                              f"Must be of set {unique_spike_types}. "
                              f"Got {cell_types}")
     else:
-        # Use default cell types
-        cell_types = ['L2_basket', 'L2_pyramidal', 'L5_basket', 'L5_pyramidal']
+        # Use default cell types with SHORT NAMES
+        cell_types = ['L2Basket', 'L2Pyr', 'L5Basket', 'L5Pyr']
+        
+        # Also check if the old long names are being used in the cell response
+        # and map them if necessary
+        if 'L2_basket' in unique_spike_types:
+            # If long names are present, use them instead
+            cell_types = ['L2_basket', 'L2_pyramidal', 'L5_basket', 'L5_pyramidal']
 
+    # Rest of the function remains the same...
     # Set default colors
     default_colors = (plt.rcParams['axes.prop_cycle']
                       .by_key()['color'][:len(cell_types)])
@@ -727,11 +734,11 @@ def plot_cells(net, ax=None, show=True, cell_colors=None, cell_markers=None):
         raise TypeError("Expected 'ax' to be an instance of Axes3D, "
                         f"but got {type(ax).__name__}")
 
-    # Default colors and markers for known cell types
-    default_colors = {'L5_pyramidal': 'b', 'L2_pyramidal': 'c',
-                      'L5_basket': 'r', 'L2_basket': 'm'}
-    default_markers = {'L5_pyramidal': '^', 'L2_pyramidal': '^',
-                       'L5_basket': 'x', 'L2_basket': 'x'}
+    # Default colors and markers using SHORT NAMES
+    default_colors = {'L5Pyr': 'b', 'L2Pyr': 'c',
+                      'L5Basket': 'r', 'L2Basket': 'm'}
+    default_markers = {'L5Pyr': '^', 'L2Pyr': '^',
+                       'L5Basket': 'x', 'L2Basket': 'x'}
     
     # Start with defaults
     colors = default_colors.copy()
@@ -771,12 +778,12 @@ def plot_cells(net, ax=None, show=True, cell_colors=None, cell_markers=None):
         
         # Determine marker based on cell type pattern
         if cell_type not in markers:
-            if 'basket' in cell_type.lower() or 'interneuron' in cell_type.lower() or cell_type == 'L2_random':
+            if 'basket' in cell_type.lower() or 'interneuron' in cell_type.lower() or cell_type == 'L2Random':
                 # Use basket-like markers for inhibitory cells
                 markers[cell_type] = basket_markers[len([k for k in markers if 'basket' in k.lower() or 'interneuron' in k.lower()]) % len(basket_markers)]
-            elif 'pyramidal' in cell_type.lower():
-                # Use pyramidal markers
-                markers[cell_type] = pyramidal_markers[len([k for k in markers if 'pyramidal' in k.lower()]) % len(pyramidal_markers)]
+            elif 'pyramidal' in cell_type.lower() or 'pyr' in cell_type.lower():
+                # Use pyramidal markers (check for both 'pyramidal' and 'pyr')
+                markers[cell_type] = pyramidal_markers[len([k for k in markers if 'pyramidal' in k.lower() or 'pyr' in k.lower()]) % len(pyramidal_markers)]
             else:
                 # Use other markers for unknown types
                 used_other = len([k for k in markers if k not in default_markers])
@@ -821,7 +828,6 @@ def plot_cells(net, ax=None, show=True, cell_colors=None, cell_markers=None):
             frameon=True, title='Cell Positions')
     plt_show(show)
     return ax.get_figure()
-
 
 def plot_tfr_morlet(dpl, freqs, *, n_cycles=7., tmin=None, tmax=None,
                     layer='agg', decim=None, padding='zeros', ax=None,
