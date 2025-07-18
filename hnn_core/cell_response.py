@@ -90,10 +90,15 @@ class CellResponse(object):
             spike_types = list()
         if times is None:
             times = list()
-
+        
+        '''
+        # we don't need to fallback on hardcode now right?
         if cell_type_names is None:
             cell_type_names = ['L2_basket', 'L2_pyramidal',
                                'L5_basket', 'L5_pyramidal']
+        '''
+        if cell_type_names is None:
+            raise ValueError("cell_type_names must be provided.")
 
         # Validate arguments
         arg_names = ['spike_times', 'spike_gids', 'spike_types']

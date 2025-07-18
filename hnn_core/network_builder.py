@@ -107,11 +107,22 @@ def _simulate_single_trial(net, tstop, dt, trial_idx):
             if ca is not None:
                 ca_py[gid][sec_name] = ca.to_python()
 
+    l2_pyramidal_name = [
+        name for name, data in neuron_net.net.cell_types.items()
+        if data['metadata'].get('layer') == '2' and
+        data['metadata'].get('morpho_type') == 'pyramidal'
+    ][0]
+    l5_pyramidal_name = [
+        name for name, data in neuron_net.net.cell_types.items()
+        if data['metadata'].get('layer') == '5' and
+        data['metadata'].get('morpho_type') == 'pyramidal'
+    ][0]
+
     dpl_data = np.c_[
-        neuron_net._nrn_dipoles['L2_pyramidal'].as_numpy() +
-        neuron_net._nrn_dipoles['L5_pyramidal'].as_numpy(),
-        neuron_net._nrn_dipoles['L2_pyramidal'].as_numpy(),
-        neuron_net._nrn_dipoles['L5_pyramidal'].as_numpy()
+        neuron_net._nrn_dipoles[l2_pyramidal_name].as_numpy() +
+        neuron_net._nrn_dipoles[l5_pyramidal_name].as_numpy(),
+        neuron_net._nrn_dipoles[l2_pyramidal_name].as_numpy(),
+        neuron_net._nrn_dipoles[l5_pyramidal_name].as_numpy()
     ]
 
     rec_arr_py = dict()
@@ -329,10 +340,9 @@ class NetworkBuilder(object):
 
         self._clear_last_network_objects()
 
-        self._nrn_dipoles = {
-            'L2_pyramidal': h.Vector(),
-            'L5_pyramidal': h.Vector()
-        }
+        for cell_type, cell_data in self.net.cell_types.items():
+            if cell_data['metadata'].get('measure_dipole', False):
+                self._nrn_dipoles[cell_type] = h.Vector()
 
         self._gid_assign()
 
@@ -433,13 +443,14 @@ class NetworkBuilder(object):
             gid_idx = gid - self.net.gid_ranges[src_type][0]
             if src_type in self.net.cell_types:
                 # copy cell object from template cell type in Network
-                cell = self.net.cell_types[src_type].copy()
+                cell = self.net.cell_types[src_type]['object'].copy()
                 cell.gid = gid
                 cell.pos = self.net.pos_dict[src_type][gid_idx]
 
                 # instantiate NEURON object
-                if src_type in ("L2Pyr", "L5Pyr"):
-                    cell.build(sec_name_apical="apical_trunk")
+                src_type_metadata = self.net.cell_types[src_type]['metadata']
+                if src_type_metadata.get('measure_dipole', False):
+                    cell.build(sec_name_apical='apical_trunk')
                 else:
                     cell.build()
                 # add tonic biases
@@ -575,20 +586,13 @@ class NetworkBuilder(object):
                                     f"Got n_samples={n_samples}, {cell.name}."
                                     f"dipole.size()={cell.dipole.size()}.")
                 
-                dipole_key = None
-                cell_name_lower = cell.name.lower()
-                
-                # Check for L2 pyramidal cells (handles L2Pyr, L2_pyramidal, etc.)
-                if 'l2' in cell_name_lower and ('pyr' in cell_name_lower or 'pyramidal' in cell_name_lower):
-                    dipole_key = 'L2_pyramidal'
-                # Check for L5 pyramidal cells (handles L5Pyr, L5_pyramidal, etc.)
-                elif 'l5' in cell_name_lower and ('pyr' in cell_name_lower or 'pyramidal' in cell_name_lower):
-                    dipole_key = 'L5_pyramidal'
-                
-                # Add the dipole if we found a valid pyramidal cell
-                if dipole_key and dipole_key in self._nrn_dipoles:
-                    nrn_dpl = self._nrn_dipoles[dipole_key]
-                    nrn_dpl.add(cell.dipole)
+                # Get the cell's type (short name, e.g., 'L2Pyr') from its GID
+                src_type = self.net.gid_to_type(cell.gid)
+
+                # Use the cell's short name as the key, which matches how
+                # self._nrn_dipoles was initialized.
+                if src_type in self._nrn_dipoles:
+                    self._nrn_dipoles[src_type].add(cell.dipole)
 
             self._vsec[cell.gid] = cell.vsec
             self._isec[cell.gid] = cell.isec
@@ -624,29 +628,29 @@ class NetworkBuilder(object):
 
         _PC.barrier()  # get all nodes to this place before continuing
 
+
     def state_init(self):
         """Initializes the state closer to baseline."""
 
         for cell in self._cells:
             seclist = h.SectionList()
-            seclist.wholetree(sec=cell._nrn_sections['soma'])
+            seclist.wholetree(sec=cell._nrn_sections["soma"])
+            src_type = self.net.gid_to_type(cell.gid)
+            metadata = self.net.cell_types[src_type]['metadata']
             for sect in seclist:
                 for seg in sect:
-                    # Handle both short and long names
-                    if cell.name in ['L2Pyr', 'L2_pyramidal']:
+                    if metadata.get('morpho_type') == 'pyramidal' and metadata.get('layer') == '2':
                         seg.v = -71.46
-                    elif cell.name in ['L5Pyr', 'L5_pyramidal']:
-                        if sect.name() in ['L5Pyr_apical_1', 'L5_pyramidal_apical_1']:
+                    elif metadata.get('morpho_type') == 'pyramidal' and metadata.get('layer') == '5':
+                        if sect.name() == f'{_short_name(src_type)}_apical_1':
                             seg.v = -71.32
-                        elif sect.name() in ['L5Pyr_apical_2', 'L5_pyramidal_apical_2']:
+                        elif sect.name() == f'{_short_name(src_type)}_apical_2':
                             seg.v = -69.08
-                        elif sect.name() in ['L5Pyr_apical_tuft', 'L5_pyramidal_apical_tuft']:
+                        elif sect.name() == f'{_short_name(src_type)}_apical_tuft':
                             seg.v = -67.30
                         else:
-                            seg.v = -72.
-                    elif cell.name in ['L2Basket', 'L2_basket']:
-                        seg.v = -64.9737
-                    elif cell.name in ['L5Basket', 'L5_basket']:
+                            seg.v = -72.0
+                    elif metadata.get('morpho_type') == 'basket':
                         seg.v = -64.9737
 
     def _clear_neuron_objects(self):

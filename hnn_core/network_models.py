@@ -216,11 +216,47 @@ def jones_2009_model(
 
     # Define cell types using short names
     cell_types = {
-        'L2Basket': basket(cell_name='L2Basket'),
-        'L2Pyr': pyramidal(cell_name='L2Pyr'),
-        'L5Basket': basket(cell_name='L5Basket'),
-        'L5Pyr': pyramidal(cell_name='L5Pyr')
-    }
+        "L2Basket": {
+            "object": basket(cell_name='L2Basket'),
+            "metadata": {
+                "morpho_type": "basket",
+                "electro_type": "inhibitory",
+                "layer": "2",
+                "measure_dipole": False,
+                "reference": "https://doi.org/10.7554/eLife.51214"
+            }
+        },
+        "L2Pyr": {
+            "object": pyramidal(cell_name='L2Pyr'),
+            "metadata": {
+                "morpho_type": "pyramidal",
+                "electro_type": "excitatory",
+                "layer": "2",
+                "measure_dipole": True,
+                "reference": "https://doi.org/10.7554/eLife.51214"
+            }
+        },
+        "L5Basket": {
+            "object": basket(cell_name='L5Basket'),
+            "metadata": {
+                "morpho_type": "basket",
+                "electro_type": "inhibitory",
+                "layer": "5",
+                "measure_dipole": False,
+                "reference": "https://doi.org/10.7554/eLife.51214"
+            }
+        },
+        "L5Pyr": {
+            "object": pyramidal(cell_name='L5Pyr'),
+            "metadata": {
+                "morpho_type": "pyramidal",
+                "electro_type": "excitatory",
+                "layer": "5",
+                "measure_dipole": True,
+                "reference": "https://doi.org/10.7554/eLife.51214"
+            }
+        }
+    }   
     
     # Create layer positions
     layer_dict = _create_cell_coords(

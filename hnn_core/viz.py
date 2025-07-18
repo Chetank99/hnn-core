@@ -426,7 +426,7 @@ def plot_spikes_hist(cell_response, trial_idx=None, ax=None, spike_types=None,
     unique_types = np.unique(spike_types_data)
     spike_types_mask = {s_type: np.isin(spike_types_data, s_type)
                         for s_type in unique_types}
-    cell_types = ['L5Pyr', 'L5Basket', 'L2Pyr', 'L2Basket']
+    cell_types = cell_response._cell_type_names
     input_types = np.setdiff1d(unique_types, cell_types)
 
     if isinstance(spike_types, str):
@@ -620,14 +620,9 @@ def plot_spikes_raster(cell_response, trial_idx=None, ax=None, show=True,
                              f"Must be of set {unique_spike_types}. "
                              f"Got {cell_types}")
     else:
-        # Use default cell types with SHORT NAMES
-        cell_types = ['L2Basket', 'L2Pyr', 'L5Basket', 'L5Pyr']
-        
-        # Also check if the old long names are being used in the cell response
-        # and map them if necessary
-        if 'L2_basket' in unique_spike_types:
-            # If long names are present, use them instead
-            cell_types = ['L2_basket', 'L2_pyramidal', 'L5_basket', 'L5_pyramidal']
+        # dynamically use the cell types from the simulation data
+        # instead of a hard-coded list.
+        cell_types = cell_response._cell_type_names
 
     # Rest of the function remains the same...
     # Set default colors

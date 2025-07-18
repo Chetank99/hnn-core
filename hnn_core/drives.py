@@ -11,7 +11,7 @@ from .params import (_extract_bias_specs_from_hnn_params,
 
 
 def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
-                           location, probability=1.0):
+                           location, cell_types, probability=1.0):
     """Retrieve drive properties associated with each target cell type
 
     Note that target cell types of a drive are inferred from the synaptic
@@ -45,15 +45,17 @@ def _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
         raise ValueError('No target cell types have been given a synaptic '
                          'weight for this drive.')
     
-    # Update the check to use short name
-    if location == 'distal' and 'L5Basket' in target_populations:
-        raise ValueError('Due to physiological/anatomical constraints, '
-                         'a distal drive cannot target L5_basket cell types. '
-                         'L5_basket cell types must remain undefined by '
-                         'the user in all synaptic weights dictionaries '
-                         'for this drive. '
-                         'Therefore, please remove the L5_basket entries '
-                         'from the corresponding dictionaries.')
+    # check using metadata and short name
+    if location == 'distal':
+        for cell_name in target_populations:
+            # check if the cell exists in metadata and matches criteria
+            if (cell_name in cell_types and
+                    cell_types[cell_name]['metadata'].get('morpho_type') == 'basket' and
+                    cell_types[cell_name]['metadata'].get('layer') == '5'):
+                raise ValueError(
+                    'Due to physiological/anatomical constraints, a distal '
+                    f'drive cannot target L5 basket cells, but {cell_name} '
+                    'was specified as a target.')
 
     # Handle synaptic_delays
     if isinstance(synaptic_delays, float):

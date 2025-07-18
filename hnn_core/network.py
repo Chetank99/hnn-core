@@ -426,12 +426,47 @@ class Network:
         else:
             # Default behavior - create standard network...now with short Names
             cell_types_default = {
-                'L2Basket': basket(cell_name='L2Basket'),
-                'L2Pyr': pyramidal(cell_name='L2Pyr'),
-                'L5Basket': basket(cell_name='L5Basket'),
-                'L5Pyr': pyramidal(cell_name='L5Pyr')
-            }
-            
+                "L2Basket": {
+                    "object": basket(cell_name='L2Basket'),
+                    "metadata": {
+                        "morpho_type": "basket",
+                        "electro_type": "inhibitory",
+                        "layer": "2",
+                        "measure_dipole": False,
+                        "reference": "https://doi.org/10.7554/eLife.51214"
+                    }
+                },
+                "L2Pyr": {
+                    "object": pyramidal(cell_name='L2Pyr'),
+                    "metadata": {
+                        "morpho_type": "pyramidal",
+                        "electro_type": "excitatory",
+                        "layer": "2",
+                        "measure_dipole": True,
+                        "reference": "https://doi.org/10.7554/eLife.51214"
+                    }
+                },
+                "L5Basket": {
+                    "object": basket(cell_name='L5Basket'),
+                    "metadata": {
+                        "morpho_type": "basket",
+                        "electro_type": "inhibitory",
+                        "layer": "5",
+                        "measure_dipole": False,
+                        "reference": "https://doi.org/10.7554/eLife.51214"
+                    }
+                },
+                "L5Pyr": {
+                    "object": pyramidal(cell_name='L5Pyr'),
+                    "metadata": {
+                        "morpho_type": "pyramidal",
+                        "electro_type": "excitatory",
+                        "layer": "5",
+                        "measure_dipole": True,
+                        "reference": "https://doi.org/10.7554/eLife.51214"
+                    }
+                }
+            }            
             self.set_cell_positions(
                 inplane_distance=self._inplane_distance,
                 layer_separation=self._layer_separation,
@@ -588,8 +623,8 @@ class Network:
         
         # Make this dynamic instead of hardcoded
         basket_counts = []
-        for cell_name in sorted(self.cell_types.keys()):
-            if 'basket' in cell_name.lower() or cell_name == 'L2_random':
+        for cell_name, cell_data in self.cell_types.items():
+            if cell_data['metadata'].get('morpho_type') == 'basket':
                 count = len(self.pos_dict.get(cell_name, []))
                 basket_counts.append(f"{count} {cell_name} cells")
         
@@ -1074,43 +1109,34 @@ class Network:
         synaptic_delays = convert_dict_keys(synaptic_delays) if isinstance(synaptic_delays, dict) else synaptic_delays
         probability = convert_dict_keys(probability) if isinstance(probability, dict) else probability
         
-        # allow passing weights as None
         (target_populations, weights_by_type, delays_by_type,
         probability_by_type) = \
             _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
-                                location, probability)
-
-        _validate_type(
-            probability, (float, dict), 'probability', 'float or dict')
-        # allow passing weights as None
-        (target_populations, weights_by_type, delays_by_type,
-         probability_by_type) = \
-            _get_target_properties(weights_ampa, weights_nmda, synaptic_delays,
-                                   location, probability)
+                                location, self.cell_types, probability)
 
         # weights passed must correspond to cells in the network
         if not target_populations.issubset(set(self.cell_types.keys())):
             raise ValueError('Allowed drive target cell types are: ',
-                             f'{self.cell_types.keys()}')
+                            f'{self.cell_types.keys()}')
 
         # enforce the same order as in self.cell_types - necessary for
         # consistent source gid assignment
         target_populations = [cell_type for cell_type in self.cell_types.keys()
-                              if cell_type in target_populations]
+                            if cell_type in target_populations]
 
         # Ensure location exists for all target cells
-        cell_sections = [set(self.cell_types[cell_type].sections.keys()) for
-                         cell_type in target_populations]
-        sect_locs = [set(self.cell_types[cell_type].sect_loc.keys()) for
-                     cell_type in target_populations]
+        cell_sections = [set(self.cell_types[cell_type]["object"].sections.keys()) for
+                        cell_type in target_populations]
+        sect_locs = [set(self.cell_types[cell_type]["object"].sect_loc.keys()) for
+                    cell_type in target_populations]
 
         valid_cell_sections = set.intersection(*cell_sections)
         valid_sect_locs = set.intersection(*sect_locs)
         valid_loc = list(valid_cell_sections) + list(valid_sect_locs)
 
         _check_option('location', location, valid_loc,
-                      extra=(f" (the location '{location}' is not defined "
-                             "for one of the targeted cells)"))
+                    extra=(f" (the location '{location}' is not defined "
+                            "for one of the targeted cells)"))
 
         if self._legacy_mode:
             # allows tests must match HNN GUI output by preserving original
@@ -1125,19 +1151,19 @@ class Network:
                     probability_by_type.update({target_type: 1.0})
         elif len(target_populations) == 0:
             raise ValueError('No target populations have been specified for '
-                             'this drive.')
+                            'this drive.')
 
         if cell_specific and n_drive_cells != 'n_cells':
             raise ValueError(f"If cell_specific is True, n_drive_cells must"
-                             f" equal 'n_cells'. Got {n_drive_cells}.")
+                            f" equal 'n_cells'. Got {n_drive_cells}.")
         elif not cell_specific:
             if not isinstance(n_drive_cells, int):
                 raise ValueError(f"If cell_specific is False, n_drive_cells "
-                                 f"must be of type int. Got "
-                                 f"{type(n_drive_cells)}.")
+                                f"must be of type int. Got "
+                                f"{type(n_drive_cells)}.")
             if not n_drive_cells > 0:
                 raise ValueError('Number of drive cells must be greater than '
-                                 f'0. Got {n_drive_cells}.')
+                                f'0. Got {n_drive_cells}.')
 
         drive['name'] = name  # for easier for-looping later
         drive['target_types'] = target_populations  # for _connect_celltypes
@@ -1168,7 +1194,7 @@ class Network:
             probability = probability_by_type[target_cell_type]
             if cell_specific:
                 target_gids_nested = [[target_gid] for
-                                      target_gid in target_gids]
+                                    target_gid in target_gids]
                 src_idx_end = src_idx + len(target_gids)
                 src_gids = (list(self.gid_ranges[name])
                             [src_idx:src_idx_end])
@@ -1493,8 +1519,8 @@ class Network:
         _validate_type(loc, str, "loc")
         _validate_type(receptor, str, "receptor")
 
-        target_sect_loc = self.cell_types[target_type].sect_loc
-        target_sections = self.cell_types[target_type].sections
+        target_sect_loc = self.cell_types[target_type]["object"].sect_loc
+        target_sections = self.cell_types[target_type]["object"].sections
         valid_loc = list(target_sect_loc.keys()) + list(target_sections.keys())
 
         _check_option(
@@ -1653,31 +1679,35 @@ class Network:
 
         net = self.copy() if copy else self
 
-        e_conns = pick_connection(self, receptor=['ampa', 'nmda'])
-        e_cells = np.concatenate([list(net.connectivity[
-            conn_idx]['src_gids']) for conn_idx in e_conns]).tolist()
+        # Identify excitatory and inhibitory GIDs based on metadata
+        e_gids = list()
+        i_gids = list()
+        for cell_type_name, cell_data in self.cell_types.items():
+            if cell_data['metadata'].get('electro_type') == 'excitatory':
+                e_gids.extend(self.gid_ranges[cell_type_name])
+            elif cell_data['metadata'].get('electro_type') == 'inhibitory':
+                i_gids.extend(self.gid_ranges[cell_type_name])
 
-        i_conns = pick_connection(self, receptor=['gabaa', 'gabab'])
-        i_cells = np.concatenate([list(net.connectivity[
-            conn_idx]['src_gids']) for conn_idx in i_conns]).tolist()
+        # Define the connection types to modify
         conn_types = {
-            'e_e': (e_e, e_cells, e_cells),
-            'e_i': (e_i, e_cells, i_cells),
-            'i_e': (i_e, i_cells, e_cells),
-            'i_i': (i_i, i_cells, i_cells)
+            'e_e': (e_e, e_gids, e_gids),
+            'e_i': (e_i, e_gids, i_gids),
+            'i_e': (i_e, i_gids, e_gids),
+            'i_i': (i_i, i_gids, i_gids)
         }
 
-        for conn_type, (gain, e_vals, i_vals) in conn_types.items():
+        # Loop through the connection types and apply the gain
+        for conn_type, (gain, src_gids, target_gids) in conn_types.items():
             if gain is None:
                 continue
 
             _validate_type(gain, (int, float), conn_type, 'int or float')
             if gain < 0.0:
                 raise ValueError("Synaptic gains must be non-negative."
-                                 f"Got {gain} for '{conn_type}'.")
+                                f"Got {gain} for '{conn_type}'.")
 
-            conn_indices = pick_connection(net, src_gids=e_vals,
-                                           target_gids=i_vals)
+            conn_indices = pick_connection(net, src_gids=src_gids,
+                                        target_gids=target_gids)
             for conn_idx in conn_indices:
                 net.connectivity[conn_idx]['nc_dict']['gain'] = gain
 
@@ -1709,6 +1739,22 @@ class Network:
     @copy_doc(write_network_configuration)
     def write_configuration(self, fname, overwrite=True):
         write_network_configuration(self, fname, overwrite)
+
+    def filter_cell_types(self, **metadata_filters):
+        """
+        Filter cell types based on metadata criteria
+        """
+        filtered_types = []
+        for cell_type_name, cell_type_data in self.cell_types.items():
+            metadata = cell_type_data["metadata"]
+            match = True
+            for key, value in metadata_filters.items():
+                if key not in metadata or metadata[key] != value:
+                    match = False
+                    break
+            if match:
+                filtered_types.append(cell_type_name)
+        return filtered_types
 
 
 class _Connectivity(dict):
@@ -1887,7 +1933,7 @@ def _add_cell_type_bias(
         'section': section
     }
 
-    sections = list(network.cell_types[cell_type].sections.keys())
+    sections = list(network.cell_types[cell_type]["object"].sections.keys())
 
     # error when section is defined that doesn't exist.
     if section not in sections:
