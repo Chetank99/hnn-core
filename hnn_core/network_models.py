@@ -445,10 +445,10 @@ def law_2021_model(params=None, add_drives_from_params=False,
                            mesh_shape=mesh_shape)
 
     # Update biophysics (increase gabab duration of inhibition)
-    net.cell_types['L2_pyramidal'].synapses['gabab']['tau1'] = 45.0
-    net.cell_types['L2_pyramidal'].synapses['gabab']['tau2'] = 200.0
-    net.cell_types['L5_pyramidal'].synapses['gabab']['tau1'] = 45.0
-    net.cell_types['L5_pyramidal'].synapses['gabab']['tau2'] = 200.0
+    net.cell_types['L2Pyr']['object'].synapses['gabab']['tau1'] = 45.0
+    net.cell_types['L2Pyr']['object'].synapses['gabab']['tau2'] = 200.0
+    net.cell_types['L5Pyr']['object'].synapses['gabab']['tau1'] = 45.0
+    net.cell_types['L5Pyr']['object'].synapses['gabab']['tau2'] = 200.0
 
     # Decrease L5_pyramidal -> L5_pyramidal nmda weight
     net.connectivity[2]['nc_dict']['A_weight'] = 0.0004
@@ -458,17 +458,17 @@ def law_2021_model(params=None, add_drives_from_params=False,
     net.connectivity[7]['nc_dict']['A_weight'] = 0.005  # gabab
 
     # Remove L5 pyramidal somatic and basal dendrite calcium channels
+    # added changes for using short name and "object" key
     for sec in ['soma', 'basal_1', 'basal_2', 'basal_3']:
-        del net.cell_types['L5_pyramidal'].sections[
-            sec].mechs['ca']
+        del net.cell_types['L5Pyr']['object'].sections[sec].mechs['ca']
 
     # Remove L2_basket -> L5_pyramidal gabaa connection
     del net.connectivity[10]  # Original paper simply sets gbar to 0.0
 
     # Add L2_basket -> L5_pyramidal gabab connection
     delay = net.delay
-    src_cell = 'L2_basket'
-    target_cell = 'L5_pyramidal'
+    src_cell = 'L2Basket'
+    target_cell = 'L5Pyr'
     lamtha = 50.
     weight = 0.0002
     loc = 'distal'
@@ -478,8 +478,8 @@ def law_2021_model(params=None, add_drives_from_params=False,
 
     # Add L5_basket -> L5_pyramidal distal connection
     # ("Martinotti-like recurrent tuft connection")
-    src_cell = 'L5_basket'
-    target_cell = 'L5_pyramidal'
+    src_cell = 'L2Basket'
+    target_cell = 'L5Pyr'
     lamtha = 70.
     loc = 'distal'
     receptor = 'gabaa'
@@ -532,10 +532,10 @@ def calcium_model(params=None, add_drives_from_params=False,
                            mesh_shape=mesh_shape)
 
     # Replace L5 pyramidal cell template with updated calcium
-    cell_name = 'L5_pyramidal'
-    pos = net.cell_types[cell_name].pos
-    net.cell_types[cell_name] = pyramidal_ca(
-        cell_name=_short_name(cell_name), pos=pos)
+    cell_name = 'L5Pyr'
+    pos = net.cell_types[cell_name]['object'].pos
+    net.cell_types[cell_name]['object'] = pyramidal_ca(
+        cell_name=cell_name, pos=pos)
 
     return net
 
@@ -561,29 +561,29 @@ def add_erp_drives_to_jones_model(net, tstart=0.0):
     _validate_type(tstart, (float, int), 'tstart', 'float or int')
 
     # Add distal drive
-    weights_ampa_d1 = {'L2_basket': 0.006562, 'L2_pyramidal': 7e-6,
-                       'L5_pyramidal': 0.142300}
-    weights_nmda_d1 = {'L2_basket': 0.019482, 'L2_pyramidal': 0.004317,
-                       'L5_pyramidal': 0.080074}
-    synaptic_delays_d1 = {'L2_basket': 0.1, 'L2_pyramidal': 0.1,
-                          'L5_pyramidal': 0.1}
+    weights_ampa_d1 = {'L2Basket': 0.006562, 'L2Pyr': 7e-6,
+                       'L5Pyr': 0.142300}
+    weights_nmda_d1 = {'L2Basket': 0.019482, 'L2Pyr': 0.004317,
+                       'L2Pyr': 0.080074}
+    synaptic_delays_d1 = {'L2Basket': 0.1, 'L2Pyr': 0.1,
+                          'L5Pyr': 0.1}
     net.add_evoked_drive(
         'evdist1', mu=63.53 + tstart, sigma=3.85, numspikes=1,
         weights_ampa=weights_ampa_d1, weights_nmda=weights_nmda_d1,
         location='distal', synaptic_delays=synaptic_delays_d1, event_seed=274)
 
     # Add proximal drives
-    weights_ampa_p1 = {'L2_basket': 0.08831, 'L2_pyramidal': 0.01525,
-                       'L5_basket': 0.19934, 'L5_pyramidal': 0.00865}
-    synaptic_delays_prox = {'L2_basket': 0.1, 'L2_pyramidal': 0.1,
-                            'L5_basket': 1., 'L5_pyramidal': 1.}
+    weights_ampa_p1 = {'L2Basket': 0.08831, 'L2Pyr': 0.01525,
+                       'L5Basket': 0.19934, 'L5Pyr': 0.00865}
+    synaptic_delays_prox = {'L2Basket': 0.1, 'L2Pyr': 0.1,
+                            'L5Basket': 1., 'L5Pyr': 1.}
     net.add_evoked_drive(
         'evprox1', mu=26.61 + tstart, sigma=2.47, numspikes=1,
         weights_ampa=weights_ampa_p1, weights_nmda=None, location='proximal',
         synaptic_delays=synaptic_delays_prox, event_seed=544)
 
-    weights_ampa_p2 = {'L2_basket': 0.000003, 'L2_pyramidal': 1.438840,
-                       'L5_basket': 0.008958, 'L5_pyramidal': 0.684013}
+    weights_ampa_p2 = {'L2Basket': 0.000003, 'L2Pyr': 1.438840,
+                       'L5Basket': 0.008958, 'L5Pyr': 0.684013}
     net.add_evoked_drive(
         'evprox2', mu=137.12 + tstart, sigma=8.33, numspikes=1,
         weights_ampa=weights_ampa_p2, location='proximal',

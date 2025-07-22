@@ -1,4 +1,3 @@
-'''
 import os.path as op
 import tempfile
 
@@ -89,7 +88,7 @@ dpls_sync = simulate_dipole(net_sync, tstop=170., n_trials=1)
 trial_idx = 0
 dpls_sync[trial_idx].copy().smooth(window_len).scale(scaling_factor).plot()
 net_sync.cell_response.plot_spikes_hist()
-'''
+
 
 '''
 import os.path as op
@@ -158,7 +157,7 @@ plt.tight_layout()
 
 plt.show()
 '''
-
+'''
 import hnn_core
 from hnn_core import jones_2009_model
 
@@ -181,3 +180,4 @@ print(f"L5 basket cells: {l5_basket_cells}")
 # Example 4.....edge caser testing...A filter that returns no matches
 layer4_cells = net.filter_cell_types(layer='4')
 print(f"Layer 4 cells: {layer4_cells}")
+'''
