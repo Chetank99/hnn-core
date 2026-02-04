@@ -311,12 +311,18 @@ def _update_ax(fig, ax, single_simulation, sim_name, plot_type, plot_config):
             for name, location in drive_locations.items():
                 if location == "distal":
                     distal_drives.append(name)
-           
+
             # weed out drives that have no spikes in the cell response
-            available_spike_types = set(net_copied.cell_response.spike_types[0]) if net_copied.cell_response.spike_times else set()
-            all_drives = [d for d in all_drives if any(d in st for st in available_spike_types)]
+            available_spike_types = (
+                set(net_copied.cell_response.spike_types[0])
+                if net_copied.cell_response.spike_times
+                else set()
+            )
+            all_drives = [
+                d for d in all_drives if any(d in st for st in available_spike_types)
+            ]
             distal_drives = [d for d in distal_drives if d in all_drives]
-            
+
             net_copied.cell_response.plot_spikes_hist(
                 ax=ax,
                 show=False,
